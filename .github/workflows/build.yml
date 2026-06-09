@@ -23,9 +23,11 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
+            artifact_path: "androidApp/build/outputs/apk/release/*.apk"
           - target: "wasmJsBrowserProductionWebpack"
             platform: "Web (WASM)"
             os: ubuntu-latest
+            artifact_path: "webApp/build/dist/**"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Sources
@@ -50,7 +52,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.platform }}-build
-          path: |
-            androidApp/build/outputs/apk/release/*.apk
-            webApp/build/dist/**
+          path: ${{ matrix.artifact_path }}
           retention-days: 7
