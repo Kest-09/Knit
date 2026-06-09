@@ -84,65 +84,65 @@ jobs:
         with:
           fetch-depth: 0
 
-          - name: Read Version Properties
-            id: read_prop
-            run: |
-              MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')
-              MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')
-              PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')
-              STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')
-              PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')
-              VERSION_STR="${MAJOR}.${MINOR}.${PATCH}"
-              echo "VERSION_STR=${VERSION_STR}" >> $GITHUB_ENV
-              echo "VERSION_STAGE=${STAGE}" >> $GITHUB_ENV
-              echo "VERSION_PUBLISH=${PUBLISH}" >> $GITHUB_ENV
-            shell: bash
+      - name: Read Version Properties
+        id: read_prop
+        run: |
+          MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')
+          MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')
+          PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')
+          STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')
+          PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')
+          VERSION_STR="${MAJOR}.${MINOR}.${PATCH}"
+          echo "VERSION_STR=${VERSION_STR}" >> $GITHUB_ENV
+          echo "VERSION_STAGE=${STAGE}" >> $GITHUB_ENV
+          echo "VERSION_PUBLISH=${PUBLISH}" >> $GITHUB_ENV
+        shell: bash
 
-          - name: Download Android
-            if: env.VERSION_PUBLISH == 'true'
-            uses: actions/download-artifact@v4
-            with:
-              name: android-apk
-              path: download-apk
+      - name: Download Android
+        if: env.VERSION_PUBLISH == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: download-apk
 
-          - name: Download Web
-            if: env.VERSION_PUBLISH == 'true'
-            uses: actions/download-artifact@v4
-            with:
-              name: web-staging
-              path: download-web
+      - name: Download Web
+        if: env.VERSION_PUBLISH == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: web-staging
+          path: download-web
 
-          - name: Prepare Release Assets
-            if: env.VERSION_PUBLISH == 'true'
-            run: |
-              if [ "$VERSION_STAGE" = "preview" ]; then
-                APK_NAME="AndroidApp-v${VERSION_STR}-preview-unsigned.apk"
-                WEB_ZIP="Web-v${VERSION_STR}-preview.zip"
-                echo "PRERELEASE=--prerelease" >> $GITHUB_ENV
-                echo "TAG_NAME=v${VERSION_STR}-preview" >> $GITHUB_ENV
-              else
-                APK_NAME="AndroidApp-v${VERSION_STR}-unsigned.apk"
-                WEB_ZIP="Web-v${VERSION_STR}.zip"
-                echo "PRERELEASE=" >> $GITHUB_ENV
-                echo "TAG_NAME=v${VERSION_STR}" >> $GITHUB_ENV
-              fi
-              mv download-apk/app.apk "$APK_NAME"
-              cd download-web
-              zip -r "../$WEB_ZIP" ./*
-              cd ..
-              echo "APK_FILE=$APK_NAME" >> $GITHUB_ENV
-              echo "WEB_FILE=$WEB_ZIP" >> $GITHUB_ENV
-            shell: bash
+      - name: Prepare Release Assets
+        if: env.VERSION_PUBLISH == 'true'
+        run: |
+          if [ "$VERSION_STAGE" = "preview" ]; then
+            APK_NAME="AndroidApp-v${VERSION_STR}-preview-unsigned.apk"
+            WEB_ZIP="Web-v${VERSION_STR}-preview.zip"
+            echo "PRERELEASE=--prerelease" >> $GITHUB_ENV
+            echo "TAG_NAME=v${VERSION_STR}-preview" >> $GITHUB_ENV
+          else
+            APK_NAME="AndroidApp-v${VERSION_STR}-unsigned.apk"
+            WEB_ZIP="Web-v${VERSION_STR}.zip"
+            echo "PRERELEASE=" >> $GITHUB_ENV
+            echo "TAG_NAME=v${VERSION_STR}" >> $GITHUB_ENV
+          fi
+          mv download-apk/app.apk "$APK_NAME"
+          cd download-web
+          zip -r "../$WEB_ZIP" ./*
+          cd ..
+          echo "APK_FILE=$APK_NAME" >> $GITHUB_ENV
+          echo "WEB_FILE=$WEB_ZIP" >> $GITHUB_ENV
+        shell: bash
 
-          - name: Create GitHub Release
-            if: env.VERSION_PUBLISH == 'true'
-            env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            run: |
-              gh release create "$TAG_NAME" \
-                "$APK_FILE" \
-                "$WEB_FILE" \
-                --title "$TAG_NAME" \
-                --notes "Automated release for version $TAG_NAME" \
-                $PRERELEASE
-            shell: bash
+      - name: Create GitHub Release
+        if: env.VERSION_PUBLISH == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG_NAME" \
+            "$APK_FILE" \
+            "$WEB_FILE" \
+            --title "$TAG_NAME" \
+            --notes "Automated release for version $TAG_NAME" \
+            $PRERELEASE
+        shell: bash
