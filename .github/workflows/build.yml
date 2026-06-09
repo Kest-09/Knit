@@ -23,14 +23,10 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
-            artifact-name: "AndroidApp-release-unsigned.apk"
-            artifact-path: "AndroidApp-release-unsigned.apk"
             archive: false
           - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
             platform: "Web"
             os: ubuntu-latest
-            artifact-name: "Web"
-            artifact-path: "staging/"
             archive: true
     runs-on: ${{ matrix.os }}
     steps:
@@ -39,6 +35,15 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Read Version Properties
+            run: |
+              echo "VERSION_MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+              echo "VERSION_MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+              echo "VERSION_PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+              echo "VERSION_STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+              echo "VERSION_PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+            shell: bash
+
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
@@ -53,20 +58,35 @@ jobs:
       
       - name: Organize Artifacts
         run: |
+          VERSION_STR="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
           if [ "${{ matrix.platform }}" = "Android" ]; then
-            mv androidApp/build/outputs/apk/release/*.apk AndroidApp-release-unsigned.apk
+            if [ "$VERSION_STAGE" = "preview" ]; then
+              mv androidApp/build/outputs/apk/release/*.apk "AndroidApp-v${VERSION_STR}-preview-unsigned.apk"
+              echo "ART_PATH=AndroidApp-v${VERSION_STR}-preview-unsigned.apk" >> $GITHUB_ENV
+              echo "ART_NAME=AndroidApp-v${VERSION_STR}-preview-unsigned.apk" >> $GITHUB_ENV
+            else
+              mv androidApp/build/outputs/apk/release/*.apk "AndroidApp-v${VERSION_STR}-release-unsigned.apk"
+              echo "ART_PATH=AndroidApp-v${VERSION_STR}-release-unsigned.apk" >> $GITHUB_ENV
+              echo "ART_NAME=AndroidApp-v${VERSION_STR}-release-unsigned.apk" >> $GITHUB_ENV
+            fi
           else
             mkdir -p staging/wasmJs staging/js
             cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
             cp -r webApp/build/dist/js/productionExecutable/* staging/js/
+            echo "ART_PATH=staging/" >> $GITHUB_ENV
+            if [ "$VERSION_STAGE" = "preview" ]; then
+              echo "ART_NAME=Web-v${VERSION_STR}-preview" >> $GITHUB_ENV
+            else
+              echo "ART_NAME=Web-v${VERSION_STR}-formal" >> $GITHUB_ENV
+            fi
           fi
         shell: bash
       
       - name: Upload ${{ matrix.platform }} artifacts
-        if: always()
+        if: always() && env.VERSION_PUBLISH == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-path }}
+          name: ${{ env.ART_NAME }}
+          path: ${{ env.ART_PATH }}
           archive: ${{ matrix.archive }}
           retention-days: 7
