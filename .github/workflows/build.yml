@@ -16,17 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - target: "assembleRelease"
-            platform: "Android"
-            os: ubuntu-latest
-          - target: "wasmJsBrowserDistribution"
-            platform: "Web (WASM)"
-            os: ubuntu-latest
-    runs-on: ${{ matrix.os }}
+  build-android:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Sources
         uses: actions/checkout@v6
@@ -42,15 +33,44 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       
-      - name: Build ${{ matrix.platform }}
-        run: ./gradlew ${{ matrix.target }} -Pandroid.aapt2FromMavenOverride=
+      - name: Build Android Release
+        run: ./gradlew assembleRelease -Pandroid.aapt2FromMavenOverride=
       
-      - name: Upload ${{ matrix.platform }} artifacts
-        if: always()
+      - name: Rename APK artifact
+        run: mv androidApp/build/outputs/apk/release/*.apk Knit-universal-apk.apk
+        shell: bash
+      
+      - name: Upload Android APK
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.platform }}-build
-          path: |
-            androidApp/build/outputs/apk/release/*.apk
-            webApp/build/dist/**
+          name: Knit-android-universal-apk.apk
+          path: Knit-android-universal-apk.apk
+          retention-days: 7
+
+  build-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: "zulu"
+          java-version: "21"
+      
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+      
+      - name: Build Web (WASM)
+        run: ./gradlew wasmJsBrowserProductionWebpack -Pandroid.aapt2FromMavenOverride=
+      
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: web
+          path: webApp/build/dist/wasmJs/productionExecutable/
           retention-days: 7
