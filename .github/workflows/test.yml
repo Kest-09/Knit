@@ -34,7 +34,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       
       - name: Run Tests
-        run: ./gradlew check
+        run: ./gradlew check -Pandroid.aapt2FromMavenOverride=
       
       - name: Upload test reports
         if: failure()

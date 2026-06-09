@@ -43,7 +43,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       
       - name: Build ${{ matrix.platform }}
-        run: ./gradlew ${{ matrix.target }}
+        run: ./gradlew ${{ matrix.target }} -Pandroid.aapt2FromMavenOverride=
       
       - name: Upload ${{ matrix.platform }} artifacts
         if: always()
