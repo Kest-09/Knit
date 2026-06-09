@@ -36,13 +36,13 @@ jobs:
           fetch-depth: 0
       
       - name: Read Version Properties
-            run: |
-              echo "VERSION_MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-              echo "VERSION_MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-              echo "VERSION_PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-              echo "VERSION_STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-              echo "VERSION_PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-            shell: bash
+        run: |
+          echo "VERSION_MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+          echo "VERSION_MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+          echo "VERSION_PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+          echo "VERSION_STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+          echo "VERSION_PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
+        shell: bash
 
       - name: Set up JDK
         uses: actions/setup-java@v5
