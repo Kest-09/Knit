@@ -13,53 +13,37 @@ on:
       - "docs/**"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check-version:
     runs-on: ubuntu-latest
     outputs:
-      should-publish: ${{ steps.version.outputs.should-publish }}
-      version-name: ${{ steps.version.outputs.version-name }}
-      is-release: ${{ steps.version.outputs.is-release }}
+      should_build: ${{ steps.parse.outputs.should_build }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
     steps:
-      - name: Checkout Sources
-        uses: actions/checkout@v6
-      
-      - name: Read version properties
-        id: version
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: parse
         run: |
-          publish=$(grep "version.publish=" version.properties | cut -d'=' -f2)
-          stage=$(grep "version.stage=" version.properties | cut -d'=' -f2)
-          major=$(grep "version.major=" version.properties | cut -d'=' -f2)
-          minor=$(grep "version.minor=" version.properties | cut -d'=' -f2)
-          patch=$(grep "version.patch=" version.properties | cut -d'=' -f2)
-          
-          version_name="${major}.${minor}.${patch}"
-          
-          if [ "$stage" = "Alpha" ]; then
-            version_name="${version_name}-Alpha"
-          elif [ "$stage" = "Beta" ]; then
-            version_name="${version_name}-Beta"
+          PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          if [ "$PUBLISH" = "true" ] && { [ "$STAGE" = "Beta" ] || [ "$STAGE" = "official" ]; }; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_build=false" >> $GITHUB_OUTPUT
           fi
-          
-          should_publish="false"
-          is_release="false"
-          
-          if [ "$publish" = "true" ] && [ "${{ github.event_name }}" = "push" ]; then
-            should_publish="true"
-            if [ "$stage" = "official" ]; then
-              is_release="true"
-            fi
+          if [ "$STAGE" = "Beta" ]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
-          
-          echo "should-publish=${should_publish}" >> $GITHUB_OUTPUT
-          echo "version-name=${version_name}" >> $GITHUB_OUTPUT
-          echo "is-release=${is_release}" >> $GITHUB_OUTPUT
+        shell: bash
 
   build:
     needs: check-version
-    if: github.event_name == 'pull_request' || needs.check-version.outputs.should-publish == 'true'
+    if: ${{ needs.check-version.outputs.should_build == 'true' }}
     strategy:
       matrix:
         include:
@@ -67,7 +51,7 @@ jobs:
             platform: "Android"
             os: ubuntu-latest
             artifact-name: "AndroidApp-release-unsigned.apk"
-            artifact-path: "androidApp/build/outputs/apk/release/*.apk"
+            artifact-path: "AndroidApp-release-unsigned.apk"
             archive: false
           - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
             platform: "Web"
@@ -97,8 +81,7 @@ jobs:
       - name: Organize Artifacts
         run: |
           if [ "${{ matrix.platform }}" = "Android" ]; then
-            mkdir -p artifacts
-            mv androidApp/build/outputs/apk/release/*.apk artifacts/AndroidApp-release-unsigned.apk
+            mv androidApp/build/outputs/apk/release/*.apk AndroidApp-release-unsigned.apk
           else
             mkdir -p staging/wasmJs staging/js
             cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
@@ -112,35 +95,34 @@ jobs:
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
+          archive: ${{ matrix.archive }}
           retention-days: 7
 
   release:
     needs: [check-version, build]
-    if: needs.check-version.outputs.is-release == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout Sources
-        uses: actions/checkout@v6
-      
-      - name: Download Android artifacts
-        uses: actions/download-artifact@v7
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
         with:
           name: AndroidApp-release-unsigned.apk
-          path: ./release-artifacts
-      
-      - name: Download Web artifacts
-        uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: Web
-          path: ./release-artifacts/web
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.check-version.outputs.version-name }}
-          name: Release ${{ needs.check-version.outputs.version-name }}
-          files: ./release-artifacts/**
-          draft: false
-          prerelease: false
+          path: Web
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          TAG="v$MAJOR.$MINOR.$PATCH"
+          ARGS=""
+          if [ "${{ needs.check-version.outputs.is_prerelease }}" = "true" ]; then
+            ARGS="--prerelease"
+          fi
+          gh release create "$TAG" AndroidApp-release-unsigned.apk Web/* $ARGS --title "$TAG" --generate-notes
+        shell: bash
