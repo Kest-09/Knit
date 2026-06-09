@@ -23,12 +23,14 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
+            artifact-name: "AndroidApp-release-unsigned.apk"
             artifact-path: "AndroidApp-release-unsigned.apk"
             archive: false
-          - target: "wasmJsBrowserDistribution"
-            platform: "Web (WASM)"
+          - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
+            platform: "Web"
             os: ubuntu-latest
-            artifact-path: "webApp/build/dist/**"
+            artifact-name: "Web"
+            artifact-path: "staging/"
             archive: true
     runs-on: ${{ matrix.os }}
     steps:
@@ -49,15 +51,22 @@ jobs:
       - name: Build ${{ matrix.platform }}
         run: ./gradlew ${{ matrix.target }} -Pandroid.aapt2FromMavenOverride=
       
-      - name: Rename Android Artifact
-        if: matrix.platform == 'Android'
-        run: mv androidApp/build/outputs/apk/release/*.apk AndroidApp-release-unsigned.apk
+      - name: Organize Artifacts
+        run: |
+          if [ "${{ matrix.platform }}" = "Android" ]; then
+            mv androidApp/build/outputs/apk/release/*.apk AndroidApp-release-unsigned.apk
+          else
+            mkdir -p staging/wasmJs staging/js
+            cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
+            cp -r webApp/build/dist/js/productionExecutable/* staging/js/
+          fi
         shell: bash
       
       - name: Upload ${{ matrix.platform }} artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
+          name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
           archive: ${{ matrix.archive }}
           retention-days: 7
