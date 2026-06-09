@@ -13,7 +13,7 @@ on:
       - "docs/**"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -23,11 +23,9 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
-            archive: false
           - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
             platform: "Web"
             os: ubuntu-latest
-            archive: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Sources
@@ -35,15 +33,6 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Read Version Properties
-        run: |
-          echo "VERSION_MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-          echo "VERSION_MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-          echo "VERSION_PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-          echo "VERSION_STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-          echo "VERSION_PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')" >> $GITHUB_ENV
-        shell: bash
-
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
@@ -58,35 +47,102 @@ jobs:
       
       - name: Organize Artifacts
         run: |
-          VERSION_STR="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
           if [ "${{ matrix.platform }}" = "Android" ]; then
-            if [ "$VERSION_STAGE" = "preview" ]; then
-              mv androidApp/build/outputs/apk/release/*.apk "AndroidApp-v${VERSION_STR}-preview-unsigned.apk"
-              echo "ART_PATH=AndroidApp-v${VERSION_STR}-preview-unsigned.apk" >> $GITHUB_ENV
-              echo "ART_NAME=AndroidApp-v${VERSION_STR}-preview-unsigned.apk" >> $GITHUB_ENV
-            else
-              mv androidApp/build/outputs/apk/release/*.apk "AndroidApp-v${VERSION_STR}-release-unsigned.apk"
-              echo "ART_PATH=AndroidApp-v${VERSION_STR}-release-unsigned.apk" >> $GITHUB_ENV
-              echo "ART_NAME=AndroidApp-v${VERSION_STR}-release-unsigned.apk" >> $GITHUB_ENV
-            fi
+            mkdir -p apk_out
+            cp androidApp/build/outputs/apk/release/*.apk apk_out/app.apk
           else
             mkdir -p staging/wasmJs staging/js
             cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
             cp -r webApp/build/dist/js/productionExecutable/* staging/js/
-            echo "ART_PATH=staging/" >> $GITHUB_ENV
-            if [ "$VERSION_STAGE" = "preview" ]; then
-              echo "ART_NAME=Web-v${VERSION_STR}-preview" >> $GITHUB_ENV
-            else
-              echo "ART_NAME=Web-v${VERSION_STR}-formal" >> $GITHUB_ENV
-            fi
           fi
         shell: bash
       
-      - name: Upload ${{ matrix.platform }} artifacts
-        if: always() && env.VERSION_PUBLISH == 'true'
+      - name: Upload Android Artifact
+        if: matrix.platform == 'Android'
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.ART_NAME }}
-          path: ${{ env.ART_PATH }}
-          archive: ${{ matrix.archive }}
-          retention-days: 7
+          name: android-apk
+          path: apk_out/app.apk
+          archive: false
+          retention-days: 1
+
+      - name: Upload Web Artifact
+        if: matrix.platform == 'Web'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-staging
+          path: staging/
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+          - name: Read Version Properties
+            id: read_prop
+            run: |
+              MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '\r ')
+              MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '\r ')
+              PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '\r ')
+              STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '\r ')
+              PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '\r ')
+              VERSION_STR="${MAJOR}.${MINOR}.${PATCH}"
+              echo "VERSION_STR=${VERSION_STR}" >> $GITHUB_ENV
+              echo "VERSION_STAGE=${STAGE}" >> $GITHUB_ENV
+              echo "VERSION_PUBLISH=${PUBLISH}" >> $GITHUB_ENV
+            shell: bash
+
+          - name: Download Android
+            if: env.VERSION_PUBLISH == 'true'
+            uses: actions/download-artifact@v4
+            with:
+              name: android-apk
+              path: download-apk
+
+          - name: Download Web
+            if: env.VERSION_PUBLISH == 'true'
+            uses: actions/download-artifact@v4
+            with:
+              name: web-staging
+              path: download-web
+
+          - name: Prepare Release Assets
+            if: env.VERSION_PUBLISH == 'true'
+            run: |
+              if [ "$VERSION_STAGE" = "preview" ]; then
+                APK_NAME="AndroidApp-v${VERSION_STR}-preview-unsigned.apk"
+                WEB_ZIP="Web-v${VERSION_STR}-preview.zip"
+                echo "PRERELEASE=--prerelease" >> $GITHUB_ENV
+                echo "TAG_NAME=v${VERSION_STR}-preview" >> $GITHUB_ENV
+              else
+                APK_NAME="AndroidApp-v${VERSION_STR}-unsigned.apk"
+                WEB_ZIP="Web-v${VERSION_STR}.zip"
+                echo "PRERELEASE=" >> $GITHUB_ENV
+                echo "TAG_NAME=v${VERSION_STR}" >> $GITHUB_ENV
+              fi
+              mv download-apk/app.apk "$APK_NAME"
+              cd download-web
+              zip -r "../$WEB_ZIP" ./*
+              cd ..
+              echo "APK_FILE=$APK_NAME" >> $GITHUB_ENV
+              echo "WEB_FILE=$WEB_ZIP" >> $GITHUB_ENV
+            shell: bash
+
+          - name: Create GitHub Release
+            if: env.VERSION_PUBLISH == 'true'
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            run: |
+              gh release create "$TAG_NAME" \
+                "$APK_FILE" \
+                "$WEB_FILE" \
+                --title "$TAG_NAME" \
+                --notes "Automated release for version $TAG_NAME" \
+                $PRERELEASE
+            shell: bash
