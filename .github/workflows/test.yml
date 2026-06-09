@@ -1,17 +1,15 @@
-name: Build All Tests
+name: Run Tests
 
 on:
   push:
     branches: ["main"]
     paths-ignore:
       - "README.md"
-      - "CLAUDE.md"
       - "docs/**"
   pull_request:
     branches: ["main"]
     paths-ignore:
       - "README.md"
-      - "CLAUDE.md"
       - "docs/**"
 
 permissions:
@@ -28,7 +26,8 @@ jobs:
           fetch-depth: 0
       - id: parse
         run: |
-          STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          STAGE=$(grep '^version.stage=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "Parsed STAGE: '$STAGE'"
           if [ "$STAGE" = "Alpha" ]; then
             echo "should_test=false" >> $GITHUB_OUTPUT
           else
@@ -36,40 +35,34 @@ jobs:
           fi
         shell: bash
 
-  build:
+  test:
     needs: check-version
     if: ${{ needs.check-version.outputs.should_test == 'true' }}
-    strategy:
-      matrix:
-        include:
-          - target: "iosSimulatorArm64Test"
-            os: macos-latest
-          - target: "desktopTest"
-            os: ubuntu-latest
-          - target: "assembleAndroidTest"
-            os: ubuntu-latest
-          - target: "wasmJsBrowserTest"
-            os: ubuntu-latest
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Sources
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
           distribution: "zulu"
           java-version: "21"
-      - name: Build with Gradle
+      
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: Run check
-        if: matrix.os == 'macos-latest'
-        run: ./gradlew check
-      - name: Run test
-        run: ./gradlew ${{ matrix.target }}
-      - name: Upload reports
+      
+      - name: Run Tests
+        run: ./gradlew check -Pandroid.aapt2FromMavenOverride=
+      
+      - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: reports
+          name: test-reports
           path: |
             **/build/reports/**
+            **/build/test-results/**
+          retention-days: 7

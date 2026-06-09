@@ -27,8 +27,10 @@ jobs:
           fetch-depth: 0
       - id: parse
         run: |
-          PUBLISH=$(grep 'version.publish' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          STAGE=$(grep 'version.stage' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          PUBLISH=$(grep '^version.publish=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          STAGE=$(grep '^version.stage=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "Parsed PUBLISH: '$PUBLISH'"
+          echo "Parsed STAGE: '$STAGE'"
           if [ "$PUBLISH" = "true" ] && { [ "$STAGE" = "Beta" ] || [ "$STAGE" = "official" ]; }; then
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
@@ -71,7 +73,7 @@ jobs:
         with:
           distribution: "zulu"
           java-version: "21"
-      
+          
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       
@@ -116,9 +118,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          MAJOR=$(grep 'version.major' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          MINOR=$(grep 'version.minor' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          PATCH=$(grep 'version.patch' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          MAJOR=$(grep '^version.major=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          MINOR=$(grep '^version.minor=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          PATCH=$(grep '^version.patch=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
           TAG="v$MAJOR.$MINOR.$PATCH"
           ARGS=""
           if [ "${{ needs.check-version.outputs.is_prerelease }}" = "true" ]; then
