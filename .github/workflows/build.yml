@@ -23,13 +23,13 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
-            artifact-name: "AndroidApp-release-unsigned.apk"
             artifact-path: "AndroidApp-release-unsigned.apk"
+            archive: false
           - target: "wasmJsBrowserDistribution"
-            platform: "Web"
+            platform: "Web (WASM)"
             os: ubuntu-latest
-            artifact-name: "Web"
             artifact-path: "webApp/build/dist/**"
+            archive: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Sources
@@ -58,6 +58,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
+          archive: ${{ matrix.archive }}
           retention-days: 7
