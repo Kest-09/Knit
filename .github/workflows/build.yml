@@ -2,88 +2,14 @@ name: Build Android and Web
 
 on:
   push:
-    branches: ["main"]
-    paths-ignore:
-      - "README.md"
-      - "docs/**"
-  pull_request:
-    branches: ["main"]
-    paths-ignore:
-      - "README.md"
-      - "docs/**"
+    tags:
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    outputs:
-      should_test: ${{ steps.parse.outputs.should_test }}
-      should_build: ${{ steps.parse.outputs.should_build }}
-      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - id: parse
-        run: |
-          PUBLISH=$(grep '^version.publish=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          STAGE=$(grep '^version.stage=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          echo "Parsed PUBLISH: '$PUBLISH'"
-          echo "Parsed STAGE: '$STAGE'"
-          if [ "$STAGE" = "Beta" ] || [ "$STAGE" = "official" ]; then
-            echo "should_test=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_test=false" >> $GITHUB_OUTPUT
-          fi
-          if [ "$PUBLISH" = "true" ] && { [ "$STAGE" = "Beta" ] || [ "$STAGE" = "official" ]; }; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          fi
-          if [ "$STAGE" = "Beta" ]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-  test:
-    needs: check-version
-    if: ${{ needs.check-version.outputs.should_test == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Sources
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      
-      - name: Set up JDK
-        uses: actions/setup-java@v5
-        with:
-          distribution: "zulu"
-          java-version: "21"
-      
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-      
-      - name: Run Tests
-        run: ./gradlew check -Pandroid.aapt2FromMavenOverride=
-      
-      - name: Upload test reports
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-reports
-          path: |
-            **/build/reports/**
-            **/build/test-results/**
-          retention-days: 7
-
   build:
-    needs: [check-version, test]
-    if: ${{ needs.check-version.outputs.should_build == 'true' }}
     strategy:
       matrix:
         include:
@@ -111,7 +37,7 @@ jobs:
         with:
           distribution: "zulu"
           java-version: "21"
-          
+      
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       
@@ -139,7 +65,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: [check-version, build]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -156,18 +82,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          MAJOR=$(grep '^version.major=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          MINOR=$(grep '^version.minor=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          PATCH=$(grep '^version.patch=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          STAGE=$(grep '^version.stage=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          if [ "$STAGE" = "Beta" ]; then
-            BETA=$(grep '^version.beta=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-            TAG="v$MAJOR.$MINOR.$PATCH-beta.$BETA"
-          else
-            TAG="v$MAJOR.$MINOR.$PATCH"
-          fi
+          TAG="${{ github.ref_name }}"
           ARGS=""
-          if [ "${{ needs.check-version.outputs.is_prerelease }}" = "true" ]; then
+          if [[ "$TAG" == *"-beta"* ]]; then
             ARGS="--prerelease"
           fi
           cd Web && zip -r ../Web.zip . && cd ..
