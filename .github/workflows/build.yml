@@ -121,7 +121,13 @@ jobs:
           MAJOR=$(grep '^version.major=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
           MINOR=$(grep '^version.minor=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
           PATCH=$(grep '^version.patch=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          TAG="v$MAJOR.$MINOR.$PATCH"
+          STAGE=$(grep '^version.stage=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          if [ "$STAGE" = "Beta" ]; then
+            BETA=$(grep '^version.beta=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+            TAG="v$MAJOR.$MINOR.$PATCH-beta.$BETA"
+          else
+            TAG="v$MAJOR.$MINOR.$PATCH"
+          fi
           ARGS=""
           if [ "${{ needs.check-version.outputs.is_prerelease }}" = "true" ]; then
             ARGS="--prerelease"
