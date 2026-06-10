@@ -52,8 +52,8 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
-            artifact-name: "Knit-release-unsigned.apk"
-            artifact-path: "Knit-release-unsigned.apk"
+            artifact-name: "Knit-unsigned.apk"
+            artifact-path: "Knit-unsigned.apk"
             archive: false
           - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
             platform: "Web"
@@ -83,7 +83,7 @@ jobs:
       - name: Organize Artifacts
         run: |
           if [ "${{ matrix.platform }}" = "Android" ]; then
-            mv androidApp/build/outputs/apk/release/*.apk Knit-release-unsigned.apk
+            mv androidApp/build/outputs/apk/release/*.apk Knit-unsigned.apk
           else
             mkdir -p staging/wasmJs staging/js
             cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
@@ -109,7 +109,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          name: Knit-release-unsigned.apk
+          name: Knit-unsigned.apk
       - uses: actions/download-artifact@v8
         with:
           name: Web
@@ -127,5 +127,5 @@ jobs:
             ARGS="--prerelease"
           fi
           cd Web && zip -r ../Web.zip . && cd ..
-          gh release create "$TAG" Knit-release-unsigned.apk Web.zip $ARGS --title "$TAG" --generate-notes
+          gh release create "$TAG" Knit-unsigned.apk Web.zip $ARGS --title "$TAG" --generate-notes
         shell: bash
