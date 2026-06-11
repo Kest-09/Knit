@@ -34,13 +34,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       
       - name: Build Web
-        run: ./gradlew :webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution -Pandroid.aapt2FromMavenOverride=
+        run: ./gradlew :webApp:wasmJsBrowserDistribution -Pandroid.aapt2FromMavenOverride=
       
       - name: Organize Artifacts
         run: |
-          mkdir -p staging/wasmJs staging/js
-          cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
-          cp -r webApp/build/dist/js/productionExecutable/* staging/js/
+          mkdir -p staging
+          cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/
         shell: bash
       
       - name: Setup Pages
