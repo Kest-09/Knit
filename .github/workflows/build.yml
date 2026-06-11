@@ -52,15 +52,15 @@ jobs:
 
       - name: Rename Signed APK
         run: |
-          mv ${{ steps.sign_app.outputs.signedReleaseFile }} Knit.apk
+          mv ${{ steps.sign_app.outputs.signedReleaseFile }} Knit-${{ github.ref_name }}-unsigned.apk
         shell: bash
       
       - name: Upload Android artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: Knit.apk
-          path: Knit.apk
+          name: Knit-${{ github.ref_name }}-unsigned.apk
+          path: Knit-${{ github.ref_name }}-unsigned.apk
           archive: false
           retention-days: 7
 
@@ -73,7 +73,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          name: Knit.apk
+          name: Knit-${{ github.ref_name }}-unsigned.apk
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -83,5 +83,5 @@ jobs:
           if [[ "$TAG" == *"-beta"* ]]; then
             ARGS="--prerelease"
           fi
-          gh release create "$TAG" Knit.apk $ARGS --title "$TAG" --generate-notes
+          gh release create "$TAG" Knit-${{ github.ref_name }}-unsigned.apk $ARGS --title "$TAG" --generate-notes
         shell: bash
