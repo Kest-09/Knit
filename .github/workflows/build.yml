@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     strategy:
@@ -16,9 +19,15 @@ jobs:
           - target: "assembleRelease"
             platform: "Android"
             os: ubuntu-latest
-            artifact-name: "Knit-unsigned.apk"
-            artifact-path: "Knit-unsigned.apk"
+            artifact-name: "Knit.apk"
+            artifact-path: "Knit.apk"
             archive: false
+          - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
+            platform: "Web"
+            os: ubuntu-latest
+            artifact-name: "Web"
+            artifact-path: "staging/"
+            archive: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Sources
@@ -41,12 +50,30 @@ jobs:
       - name: Organize Artifacts
         run: |
           if [ "${{ matrix.platform }}" = "Android" ]; then
-            mv androidApp/build/outputs/apk/release/*.apk Knit-unsigned.apk
+            mkdir -p dist
+            mv androidApp/build/outputs/apk/release/*.apk dist/
           else
             mkdir -p staging/wasmJs staging/js
             cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
             cp -r webApp/build/dist/js/productionExecutable/* staging/js/
           fi
+        shell: bash
+
+      - name: Sign Android APK
+        if: matrix.platform == 'Android'
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: dist
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Rename Signed APK
+        if: matrix.platform == 'Android'
+        run: |
+          mv ${{ steps.sign_app.outputs.signedReleaseFile }} Knit.apk
         shell: bash
       
       - name: Upload ${{ matrix.platform }} artifacts
@@ -67,7 +94,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          name: Knit-unsigned.apk
+          name: Knit.apk
+      - uses: actions/download-artifact@v8
+        with:
+          name: Web
+          path: Web
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -77,5 +108,6 @@ jobs:
           if [[ "$TAG" == *"-beta"* ]]; then
             ARGS="--prerelease"
           fi
-          gh release create "$TAG" Knit-unsigned.apk $ARGS --title "$TAG" --generate-notes
+          cd Web && zip -r ../Web.zip . && cd ..
+          gh release create "$TAG" Knit.apk Web.zip $ARGS --title "$TAG" --generate-notes
         shell: bash

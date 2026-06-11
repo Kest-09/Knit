@@ -1,5 +1,6 @@
 *.iml
 *.bak
+*.jks
 .kotlin
 .gradle
 **/build/
