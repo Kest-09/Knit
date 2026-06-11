@@ -63,8 +63,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.ref_name }}"
+          TAG_LOWER=$(echo "$TAG" | tr '[:upper:]' '[:lower:]')
           ARGS=""
-          if [[ "$TAG" == *"-beta"* ]]; then
+          if [[ "$TAG_LOWER" == *"beta"* || "$TAG_LOWER" == *"alpha"* || "$TAG_LOWER" == *"rc"* ]]; then
             ARGS="--prerelease"
           fi
           gh release create "$TAG" Knit-${{ github.ref_name }}-unsigned.apk $ARGS --title "$TAG" --generate-notes
