@@ -19,12 +19,6 @@ jobs:
             artifact-name: "Knit-unsigned.apk"
             artifact-path: "Knit-unsigned.apk"
             archive: false
-          - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
-            platform: "Web"
-            os: ubuntu-latest
-            artifact-name: "Web"
-            artifact-path: "staging/"
-            archive: true
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Sources
@@ -74,10 +68,6 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Knit-unsigned.apk
-      - uses: actions/download-artifact@v8
-        with:
-          name: Web
-          path: Web
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,6 +77,5 @@ jobs:
           if [[ "$TAG" == *"-beta"* ]]; then
             ARGS="--prerelease"
           fi
-          cd Web && zip -r ../Web.zip . && cd ..
-          gh release create "$TAG" Knit-unsigned.apk Web.zip $ARGS --title "$TAG" --generate-notes
+          gh release create "$TAG" Knit-unsigned.apk $ARGS --title "$TAG" --generate-notes
         shell: bash
