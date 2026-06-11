@@ -13,22 +13,7 @@ env:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - target: "assembleRelease"
-            platform: "Android"
-            os: ubuntu-latest
-            artifact-name: "Knit.apk"
-            artifact-path: "Knit.apk"
-            archive: false
-          - target: ":webApp:wasmJsBrowserDistribution :webApp:jsBrowserDistribution"
-            platform: "Web"
-            os: ubuntu-latest
-            artifact-name: "Web"
-            artifact-path: "staging/"
-            archive: true
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Sources
         uses: actions/checkout@v6
@@ -44,25 +29,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       
-      - name: Build ${{ matrix.platform }}
-        run: ./gradlew ${{ matrix.target }} -Pandroid.aapt2FromMavenOverride=
+      - name: Build Android
+        run: ./gradlew assembleRelease -Pandroid.aapt2FromMavenOverride=
       
       - name: Organize Artifacts
         run: |
-          if [ "${{ matrix.platform }}" = "Android" ]; then
-            mkdir -p dist
-            mv androidApp/build/outputs/apk/release/*.apk dist/
-          else
-            mkdir -p staging/wasmJs staging/js
-            cp -r webApp/build/dist/wasmJs/productionExecutable/* staging/wasmJs/
-            cp -r webApp/build/dist/js/productionExecutable/* staging/js/
-          fi
+          mkdir -p dist
+          mv androidApp/build/outputs/apk/release/*.apk dist/
         shell: bash
 
       - name: Sign Android APK
-        if: matrix.platform == 'Android'
         uses: r0adkll/sign-android-release@v1
         id: sign_app
+        env:
+          BUILD_TOOLS_VERSION: "36.0.0"
         with:
           releaseDirectory: dist
           signingKeyBase64: ${{ secrets.SIGNING_KEY }}
@@ -71,18 +51,17 @@ jobs:
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
       - name: Rename Signed APK
-        if: matrix.platform == 'Android'
         run: |
           mv ${{ steps.sign_app.outputs.signedReleaseFile }} Knit.apk
         shell: bash
       
-      - name: Upload ${{ matrix.platform }} artifacts
+      - name: Upload Android artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-path }}
-          archive: ${{ matrix.archive }}
+          name: Knit.apk
+          path: Knit.apk
+          archive: false
           retention-days: 7
 
   release:
@@ -95,10 +74,6 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Knit.apk
-      - uses: actions/download-artifact@v8
-        with:
-          name: Web
-          path: Web
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,6 +83,5 @@ jobs:
           if [[ "$TAG" == *"-beta"* ]]; then
             ARGS="--prerelease"
           fi
-          cd Web && zip -r ../Web.zip . && cd ..
-          gh release create "$TAG" Knit.apk Web.zip $ARGS --title "$TAG" --generate-notes
+          gh release create "$TAG" Knit.apk $ARGS --title "$TAG" --generate-notes
         shell: bash
